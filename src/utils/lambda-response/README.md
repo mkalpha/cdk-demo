@@ -1,6 +1,6 @@
 # Lambda Response Utilities
 
-This utility provides a clean and consistent way to handle AWS Lambda responses and custom errors in your TypeScript CDK project.
+This utility provides a clean and consistent way to handle AWS Lambda responses and custom errors.
 
 ## Features
 

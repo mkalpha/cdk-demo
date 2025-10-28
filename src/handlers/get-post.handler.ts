@@ -5,7 +5,7 @@ import {
   NotFoundException,
   BadRequestException,
   withErrorHandler,
-} from "../utils";
+} from "../utils/lambda-response";
 
 interface Post {
   id: number;
@@ -42,15 +42,13 @@ const getPostHandler = async (
     throw new BadRequestException("Post ID must be a valid number");
   }
 
-  const post = posts.find((p) => p.id === id);
+  const post = posts.find((post) => post.id === id);
 
   if (!post) {
     throw new NotFoundException(`Post with ID ${id} not found`);
   }
 
-  // Return successful response
   return response(post);
 };
 
-// Export the handler wrapped with error handling
 export const handler = withErrorHandler(getPostHandler);
