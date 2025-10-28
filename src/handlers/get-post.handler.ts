@@ -1,7 +1,6 @@
 import { APIGatewayProxyEvent, Context } from "aws-lambda";
 import {
   response,
-  responseWithStatus,
   NotFoundException,
   BadRequestException,
   withErrorHandler,

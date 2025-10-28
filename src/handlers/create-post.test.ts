@@ -22,22 +22,24 @@ const mockContext: Context = {
   succeed: () => {},
 };
 
+const genericEvent = {
+  body: JSON.stringify({}),
+  headers: {},
+  multiValueHeaders: {},
+  httpMethod: "POST",
+  isBase64Encoded: false,
+  path: "/posts",
+  pathParameters: null,
+  queryStringParameters: null,
+  multiValueQueryStringParameters: null,
+  stageVariables: null,
+  requestContext: {} as any,
+  resource: "",
+};
+
 describe("Create Post Handler", () => {
   it("should return 404 when title is missing", async () => {
-    const event: Partial<APIGatewayProxyEvent> = {
-      body: JSON.stringify({}),
-      headers: {},
-      multiValueHeaders: {},
-      httpMethod: "POST",
-      isBase64Encoded: false,
-      path: "/posts",
-      pathParameters: null,
-      queryStringParameters: null,
-      multiValueQueryStringParameters: null,
-      stageVariables: null,
-      requestContext: {} as any,
-      resource: "",
-    };
+    const event: Partial<APIGatewayProxyEvent> = { ...genericEvent };
 
     const result = (await handler(
       event as APIGatewayProxyEvent,
@@ -56,21 +58,11 @@ describe("Create Post Handler", () => {
 
   it("should create a post when valid data is provided", async () => {
     const event: Partial<APIGatewayProxyEvent> = {
+      ...genericEvent,
       body: JSON.stringify({
         title: "Test Post",
         content: "This is a test post",
       }),
-      headers: {},
-      multiValueHeaders: {},
-      httpMethod: "POST",
-      isBase64Encoded: false,
-      path: "/posts",
-      pathParameters: null,
-      queryStringParameters: null,
-      multiValueQueryStringParameters: null,
-      stageVariables: null,
-      requestContext: {} as any,
-      resource: "",
     };
 
     const result = (await handler(
