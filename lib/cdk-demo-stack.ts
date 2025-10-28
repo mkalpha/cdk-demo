@@ -211,7 +211,12 @@ export class CdkDemoStack extends cdk.Stack {
       clusterIdentifier: dbClusterIdentifier,
       copyTagsToSnapshot: true,
       credentials: rds.Credentials.fromUsername("postgres", {
-        password: cdk.SecretValue.ssmSecure("/cdk-demo/database/password"),
+        /**
+         * Cloudformation does not support ssm SECURE_STRING parameters
+         * So you cannnot do password: cdk.SecretValue.ssmSecure("/cdk-demo/database/password"),
+         * In production you would use Secrets manager instead of ssm (ssm is free)
+         */
+        password: cdk.SecretValue.unsafePlainText(dbPassword.stringValue),
       }),
       deletionProtection: false,
       iamAuthentication: false,
