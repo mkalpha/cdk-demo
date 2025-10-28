@@ -5,6 +5,7 @@ import * as path from "path";
 import * as lambda from "aws-cdk-lib/aws-lambda-nodejs";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
 import * as apiGatewayv2Integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import * as iam from "aws-cdk-lib/aws-iam";
 
 import {
   Duration,
@@ -18,6 +19,14 @@ import {
 export class CdkDemoStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    /**
+     * Service-Linked Role for RDS
+     * This is required for RDS to manage resources
+     */
+    new iam.CfnServiceLinkedRole(this, "RDSServiceLinkedRole", {
+      awsServiceName: "rds.amazonaws.com",
+    });
 
     /**
      * API Gateway
