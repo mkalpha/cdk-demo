@@ -9,7 +9,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest-arm64 # Use ARM64 runner
+    runs-on: ubuntu-24.04-arm # Use ARM64 runner
     steps:
       - uses: actions/checkout@v4
 
