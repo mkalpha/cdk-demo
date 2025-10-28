@@ -31,9 +31,9 @@ jobs:
         run: |
           pnpm run build
 
-      #   - name: Run tests
-      #     run: |
-      #       pnpm run test
+      - name: Run tests
+        run: |
+          pnpm run test
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

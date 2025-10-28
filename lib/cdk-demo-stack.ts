@@ -3,7 +3,7 @@ import { Construct } from "constructs";
 import * as apiGateway from "aws-cdk-lib/aws-apigatewayv2";
 import * as path from "path";
 import * as lambda from "aws-cdk-lib/aws-lambda-nodejs";
-import { Runtime } from "aws-cdk-lib/aws-lambda";
+import { Runtime, Architecture } from "aws-cdk-lib/aws-lambda";
 import * as apiGatewayv2Integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as iam from "aws-cdk-lib/aws-iam";
 
@@ -11,9 +11,9 @@ import {
   Duration,
   aws_ec2 as ec2,
   aws_logs as logs,
-  aws_secretsmanager as secretsmanager,
   aws_rds as rds,
   aws_cloudwatch as cloudwatch,
+  aws_ssm as ssm,
 } from "aws-cdk-lib";
 
 export class CdkDemoStack extends cdk.Stack {
@@ -47,17 +47,22 @@ export class CdkDemoStack extends cdk.Stack {
     /**
      * Metrics
      */
-    const requestMetric = api.metric("Count", {
+    const requestMetric = api.metric(`${api.httpApiName}-Count`, {
       statistic: "Sum",
       period: Duration.minutes(5),
     });
 
-    const errorMetric5XX = api.metric("5XXError", {
+    const errorMetric5XX = api.metric(`${api.httpApiName}-5XXError`, {
       statistic: "Sum",
       period: Duration.minutes(5),
     });
 
-    const errorMetric4XX = api.metric("4XXError", {
+    const errorMetric4XX = api.metric(`${api.httpApiName}-4XXError`, {
+      statistic: "Sum",
+      period: Duration.minutes(5),
+    });
+
+    const successMetric2XX = api.metric(`${api.httpApiName}-2XXSuccess`, {
       statistic: "Sum",
       period: Duration.minutes(5),
     });
@@ -65,7 +70,7 @@ export class CdkDemoStack extends cdk.Stack {
     /**
      * Alerts
      */
-    new cloudwatch.Alarm(this, "High5XXErrorRate", {
+    new cloudwatch.Alarm(this, `${api.httpApiName}-High5XXErrorRate`, {
       metric: errorMetric5XX,
       threshold: 10,
       evaluationPeriods: 2,
@@ -105,12 +110,19 @@ export class CdkDemoStack extends cdk.Stack {
         height: 6,
       })
     );
+    dashboard.addWidgets(
+      new cloudwatch.GraphWidget({
+        title: "API 2XX Success",
+        left: [successMetric2XX],
+        width: 12,
+        height: 6,
+      })
+    );
 
     /**
      * VPC
-     * Creates a VPC with 3 available subnets,
+     * Creates a VPC with 2 available subnets,
      * Public
-     * Private with Egress (outbound only)
      * Isolated Subnet (No internet in either direction)
      */
     const vpc = new ec2.Vpc(this, `rds-vpc`, {
@@ -118,11 +130,6 @@ export class CdkDemoStack extends cdk.Stack {
       maxAzs: 2,
       subnetConfiguration: [
         { name: "Public", subnetType: ec2.SubnetType.PUBLIC, cidrMask: 24 },
-        {
-          name: "Private",
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-          cidrMask: 24,
-        },
         {
           name: "Isolated",
           subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
@@ -134,15 +141,9 @@ export class CdkDemoStack extends cdk.Stack {
     /**
      * Security Groups
      * rdsGroup: security group to be attached to RDS. This group allows connection from any resources that belongs to dbProxyGroup.
-     * dbProxyGroup: security group to be attached to RDS Proxy. This group allows connection from any resources that belongs to lambdaGroup.
      * lambdaGroup: security group to be attached to Lambda.
      */
     const rdsGroup = new ec2.SecurityGroup(this, `rds-group`, {
-      vpc,
-      allowAllOutbound: true,
-    });
-
-    const dbProxyGroup = new ec2.SecurityGroup(this, "proxy-group", {
       vpc,
       allowAllOutbound: true,
     });
@@ -153,43 +154,28 @@ export class CdkDemoStack extends cdk.Stack {
     });
 
     rdsGroup.addIngressRule(
-      dbProxyGroup,
-      ec2.Port.tcp(5432),
-      "allow proxy to rds connection"
-    );
-
-    dbProxyGroup.addIngressRule(
       lambdaGroup,
       ec2.Port.tcp(5432),
-      "allow lambda to proxy connection"
+      "allow lambda to rds connection"
     );
 
     /**
-     * Secrets Manager - Generates DB Secret
+     * Parameter Store - Reference existing DB Password
      */
-    const dbAdminSecret = new secretsmanager.Secret(
+    const dbPassword = ssm.StringParameter.fromStringParameterName(
       this,
-      "database-admin-secret",
-      {
-        secretName: `dbAdminLoginInfo`,
-        generateSecretString: {
-          excludeCharacters: ":@/\" '",
-          generateStringKey: "password",
-          passwordLength: 21,
-          secretStringTemplate: '{"username": "postgres"}',
-        },
-      }
+      "database-password",
+      "/cdk-demo/database/password"
     );
 
-    new ec2.InterfaceVpcEndpoint(this, "secret-manager-vpc-endpoint", {
+    new ec2.InterfaceVpcEndpoint(this, "systems-manager-vpc-endpoint", {
       vpc: vpc,
-      service: ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+      service: ec2.InterfaceVpcEndpointAwsService.SSM,
     });
 
     /**
      * RDS Cluster
      */
-
     const dbClusterIdentifier = "rds-cluster";
     const dbInstanceIdentifier = "rds-instance";
 
@@ -214,11 +200,6 @@ export class CdkDemoStack extends cdk.Stack {
       writer: rds.ClusterInstance.serverlessV2(
         `${dbInstanceIdentifier}-writer`
       ),
-      readers: [
-        rds.ClusterInstance.serverlessV2(`${dbInstanceIdentifier}-reader`, {
-          scaleWithWriter: true,
-        }),
-      ],
       serverlessV2MinCapacity: 0.5,
       serverlessV2MaxCapacity: 1,
       backup: {
@@ -229,22 +210,14 @@ export class CdkDemoStack extends cdk.Stack {
       cloudwatchLogsRetention: logs.RetentionDays.ONE_DAY,
       clusterIdentifier: dbClusterIdentifier,
       copyTagsToSnapshot: true,
-      credentials: rds.Credentials.fromSecret(dbAdminSecret),
+      credentials: rds.Credentials.fromUsername("postgres", {
+        password: cdk.SecretValue.ssmSecure("/cdk-demo/database/password"),
+      }),
       deletionProtection: false,
       iamAuthentication: false,
       instanceIdentifierBase: dbInstanceIdentifier,
       preferredMaintenanceWindow: "Sat:17:00-Sat:17:30",
       storageEncrypted: true,
-    });
-
-    /**
-     * RDS Proxy
-     */
-    const proxy = dbCluster.addProxy("rds-proxy", {
-      secrets: [dbAdminSecret],
-      debugLogging: true,
-      vpc: vpc,
-      securityGroups: [dbProxyGroup],
     });
 
     /**
@@ -262,14 +235,16 @@ export class CdkDemoStack extends cdk.Stack {
         handler: "handler",
         memorySize: 512,
         runtime: Runtime.NODEJS_22_X,
+        architecture: Architecture.ARM_64,
+        logRetention: logs.RetentionDays.ONE_DAY,
         timeout: cdk.Duration.seconds(60),
         bundling: {
           target: "es2020",
         },
         environment: {
-          DATABASE_ENDPOINT: proxy.endpoint,
+          DATABASE_ENDPOINT: dbCluster.clusterEndpoint.socketAddress,
           DATABASE_NAME: "postgres",
-          SECRET_NAME: dbAdminSecret.secretName,
+          DATABASE_PASSWORD_PARAMETER: "/cdk-demo/database/password", // Reference the parameter name
           ENV: process.env.ENV ?? "dev",
         },
         vpc: vpc,
@@ -277,8 +252,7 @@ export class CdkDemoStack extends cdk.Stack {
       }
     );
 
-    dbAdminSecret.grantRead(createPostFunction);
-    proxy.grantConnect(createPostFunction);
+    dbPassword.grantRead(createPostFunction);
 
     const createPostIntegration =
       new apiGatewayv2Integrations.HttpLambdaIntegration(
