@@ -228,6 +228,17 @@ export class CdkDemoStack extends cdk.Stack {
     /**
      * Lambda Functions
      */
+
+    const logGroupName = `/aws/lambda/${
+      process.env.STAGE ?? "dev"
+    }-cdk-demo-create-post`;
+
+    new logs.LogRetention(this, "CreatePostLogRetention", {
+      logGroupName: logGroupName,
+      retention: logs.RetentionDays.ONE_DAY,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const createPostFunction = new lambda.NodejsFunction(
       this,
       "CreatePostFunction",
@@ -255,16 +266,6 @@ export class CdkDemoStack extends cdk.Stack {
         securityGroups: [lambdaGroup],
       }
     );
-
-    const logGroupName = `/aws/lambda/${
-      process.env.STAGE ?? "dev"
-    }-cdk-demo-create-post`;
-
-    new logs.LogRetention(this, "CreatePostLogRetention", {
-      logGroupName: logGroupName,
-      retention: logs.RetentionDays.ONE_DAY,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
 
     dbPassword.grantRead(createPostFunction);
 
