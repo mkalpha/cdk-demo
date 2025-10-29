@@ -6,6 +6,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda-nodejs";
 import { Runtime, Architecture } from "aws-cdk-lib/aws-lambda";
 import * as apiGatewayv2Integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as logs from "aws-cdk-lib/aws-logs";
 
 export class CdkDemoStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
