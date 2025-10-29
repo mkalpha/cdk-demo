@@ -229,12 +229,10 @@ export class CdkDemoStack extends cdk.Stack {
      * Lambda Functions
      */
 
-    const logGroupName = `/aws/lambda/${
-      process.env.STAGE ?? "dev"
-    }-cdk-demo-create-post`;
-
-    new logs.LogRetention(this, "CreatePostLogRetention", {
-      logGroupName: logGroupName,
+    const createPostLogGroup = new logs.LogGroup(this, "CreatePostLogGroup", {
+      logGroupName: `/aws/lambda/${
+        process.env.STAGE ?? "dev"
+      }-cdk-demo-create-post`,
       retention: logs.RetentionDays.ONE_DAY,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -252,6 +250,7 @@ export class CdkDemoStack extends cdk.Stack {
         memorySize: 512,
         runtime: Runtime.NODEJS_22_X,
         architecture: Architecture.ARM_64,
+        logGroup: createPostLogGroup,
         timeout: cdk.Duration.seconds(60),
         bundling: {
           target: "es2020",
