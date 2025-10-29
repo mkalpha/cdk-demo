@@ -213,7 +213,7 @@ export class CdkDemoStack extends cdk.Stack {
       credentials: rds.Credentials.fromUsername("postgres", {
         /**
          * Cloudformation does not support ssm SECURE_STRING parameters
-         * So you cannnot do password: cdk.SecretValue.ssmSecure("/cdk-demo/database/password"),
+         * So you cannot do password: cdk.SecretValue.ssmSecure("/cdk-demo/database/password"),
          * In production you would use Secrets manager instead of ssm (ssm is free)
          */
         password: cdk.SecretValue.unsafePlainText(dbPassword.stringValue),
@@ -228,15 +228,6 @@ export class CdkDemoStack extends cdk.Stack {
     /**
      * Lambda Functions
      */
-
-    const createPostLogGroup = new logs.LogGroup(this, "CreatePostLogGroup", {
-      logGroupName: `/aws/lambda/${
-        process.env.STAGE ?? "dev"
-      }-cdk-demo-create-post`,
-      retention: logs.RetentionDays.ONE_DAY,
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // Optional: removes log group when stack is deleted
-    });
-
     const createPostFunction = new lambda.NodejsFunction(
       this,
       "CreatePostFunction",
@@ -250,7 +241,6 @@ export class CdkDemoStack extends cdk.Stack {
         memorySize: 512,
         runtime: Runtime.NODEJS_22_X,
         architecture: Architecture.ARM_64,
-        logGroup: createPostLogGroup,
         timeout: cdk.Duration.seconds(60),
         bundling: {
           target: "es2020",
@@ -265,6 +255,16 @@ export class CdkDemoStack extends cdk.Stack {
         securityGroups: [lambdaGroup],
       }
     );
+
+    const logGroupName = `/aws/lambda/${
+      process.env.STAGE ?? "dev"
+    }-cdk-demo-create-post`;
+
+    new logs.LogRetention(this, "CreatePostLogRetention", {
+      logGroupName: logGroupName,
+      retention: logs.RetentionDays.ONE_DAY,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
 
     dbPassword.grantRead(createPostFunction);
 
